@@ -359,11 +359,9 @@ class NodeConn(Greenlet):
 			if blkhash == message.hashstop:
 				break
 
-			db_block = self.chaindb.getblock(blkhash)
-			block = copy.copy(db_block)
-			block.vtx = []
+			block = self.chaindb.getblock(blkhash)
 
-			msg.headers.append(block)
+			msg.headers.append(block.get_header())
 
 			height += 1
 
