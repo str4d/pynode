@@ -15,8 +15,8 @@ import sys
 import itertools
 
 import ChainDb
-import bitcoin.coredefs
-from bitcoin.serialize import uint256_from_compact
+import bitcoin.core
+from bitcoin.core.serialize import uint256_from_compact
 
 VALID_RPCS = {
 	"getblockcount",
@@ -146,7 +146,7 @@ class RPCExec(object):
 
 	def getinfo(self, params):
 		d = {}
-		d['protocolversion'] = bitcoin.coredefs.PROTO_VERSION
+		d['protocolversion'] = bitcoin.core.PROTO_VERSION
 		d['blocks'] = self.chaindb.getheight()
 		if self.chaindb.netmagic.block0 == 0x000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26fL:
 			d['testnet'] = False

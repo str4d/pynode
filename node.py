@@ -27,9 +27,11 @@ import rpc
 import ChainDb
 import MemPool
 import Log
+import bitcoin
 from bitcoin.core import *
-from bitcoin.serialize import *
+from bitcoin.core.serialize import *
 from bitcoin.messages import *
+from bitcoin.net import *
 
 MY_SUBVERSION = "/pynode:0.0.1/"
 

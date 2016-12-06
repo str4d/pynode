@@ -14,11 +14,11 @@ import os
 import time
 from decimal import Decimal
 from Cache import Cache
-from bitcoin.serialize import *
+import bitcoin
 from bitcoin.core import *
-from bitcoin.messages import msg_block, message_to_str, message_read
-from bitcoin.coredefs import COIN
-from bitcoin.scripteval import VerifySignature
+from bitcoin.core.scripteval import VerifySignature
+from bitcoin.core.serialize import *
+from bitcoin.messages import msg_block
 
 
 

@@ -6,7 +6,7 @@
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #
 
-from bitcoin.serialize import uint256_to_shortstr
+from bitcoin.core.serialize import uint256_to_shortstr
 
 
 class MemPool(object):
