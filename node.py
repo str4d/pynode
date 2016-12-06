@@ -167,7 +167,7 @@ class NodeConn(Greenlet):
 			gd = msg_getdata(self.ver_send)
 			inv = CInv()
 			inv.type = 2
-			inv.hash = bitcoin.params.GENESIS_BLOCK.sha256
+			inv.hash = bitcoin.params.GENESIS_BLOCK.GetHash()
 			gd.inv.append(inv)
 			self.send_message(gd)
 		elif our_height < self.remote_height:
@@ -230,9 +230,9 @@ class NodeConn(Greenlet):
 
 		elif message.command == "tx":
 			if self.chaindb.tx_is_orphan(message.tx):
-				self.log.write("MemPool: Ignoring orphan TX %064x" % (message.tx.sha256,))
+				self.log.write("MemPool: Ignoring orphan TX %s" % (b2lx(message.tx.GetHash()),))
 			elif not self.chaindb.tx_signed(message.tx, None, True):
-				self.log.write("MemPool: Ignoring failed-sig TX %064x" % (message.tx.sha256,))
+				self.log.write("MemPool: Ignoring failed-sig TX %s" % (b2lx(message.tx.GetHash()),))
 			else:
 				self.mempool.add(message.tx)
 

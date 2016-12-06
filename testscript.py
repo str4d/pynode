@@ -62,20 +62,18 @@ SKIP_TX = {
 
 
 def scan_tx(tx):
-	tx.calc_sha256()
-
-	if tx.sha256 in SKIP_TX:
+	if tx.GetHash() in SKIP_TX:
 		return True
 
-#	log.write("...Scanning TX %064x" % (tx.sha256,))
+#	log.write("...Scanning TX %s" % (b2lx(tx.GetHash()),))
 	for i in xrange(len(tx.vin)):
 		txin = tx.vin[i]
 		txfrom = chaindb.gettx(txin.prevout.hash)
 		if not VerifySignature(txfrom, tx, i, 0):
-			log.write("TX %064x/%d failed" % (tx.sha256, i))
-			log.write("FROMTX %064x" % (txfrom.sha256,))
+			log.write("TX %s/%d failed" % (b2lx(tx.GetHash()), i))
+			log.write("FROMTX %s" % (b2lx(txfrom.GetHash()),))
 			log.write(txfrom.__repr__())
-			log.write("TOTX %064x" % (tx.sha256,))
+			log.write("TOTX %s" % (b2lx(tx.GetHash()),))
 			log.write(tx.__repr__())
 			return False
 	return True

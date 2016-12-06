@@ -6,7 +6,7 @@
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #
 
-from bitcoin.core.serialize import uint256_to_shortstr
+from bitcoin.core import CheckTransaction, CheckTransactionError, b2lx
 
 
 class MemPool(object):
@@ -15,14 +15,15 @@ class MemPool(object):
 		self.log = log
 
 	def add(self, tx):
-		tx.calc_sha256()
-		hash = tx.sha256
-		hashstr = uint256_to_shortstr(hash)
+		hash = tx.GetHash()
+		hashstr = b2lx(hash)
 
 		if hash in self.pool:
 			self.log.write("MemPool.add(%s): already known" % (hashstr,))
 			return False
-		if not tx.is_valid():
+		try:
+			CheckTransaction(tx)
+		except CheckTransactionError:
 			self.log.write("MemPool.add(%s): invalid TX" % (hashstr, ))
 			return False
 

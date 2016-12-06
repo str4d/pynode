@@ -50,8 +50,10 @@ for height in xrange(chaindb.getheight()):
 	block = CBlock()
 	block.deserialize(f)
 
-	if not block.is_valid():
-		log.write("block %064x failed" % (blkhash,))
+	try:
+		CheckBlock(block)
+	except CheckBlockError:
+		log.write("block %s failed" % (b2lx(blkhash),))
 		failures += 1
 
 	scanned += 1

@@ -52,24 +52,22 @@ def bufreverse(in_buf):
 	return ''.join(out_words)
 
 def blockToJSON(block, blkmeta, cur_height):
-	block.calc_sha256()
 	res = {}
 
-	res['hash'] = "%064x" % (block.sha256,)
+	res['hash'] = b2lx(block.GetHash())
 	res['confirmations'] = cur_height - blkmeta.height + 1
 	res['size'] = len(block.serialize())
 	res['height'] = blkmeta.height
 	res['version'] = block.nVersion
-	res['merkleroot'] = "%064x" % (block.hashMerkleRoot,)
+	res['merkleroot'] = b2lx(block.hashMerkleRoot)
 	res['time'] = block.nTime
 	res['nonce'] = block.nNonce
 	res['bits'] = "%x" % (block.nBits,)
-	res['previousblockhash'] = "%064x" % (block.hashPrevBlock,)
+	res['previousblockhash'] = b2lx(block.hashPrevBlock)
 
 	txs = []
 	for tx in block.vtx:
-		tx.calc_sha256()
-		txs.append("%064x" % (tx.sha256,))
+		txs.append("%s" % (b2lx(tx.GetHash()),))
 	
 	res['tx'] = txs
 
@@ -139,7 +137,7 @@ class RPCExec(object):
 		heightidx = ChainDb.HeightIdx()
 		heightidx.deserialize(self.chaindb.height[str(index)])
 
-		return ("%064x" % (heightidx.blocks[0],), None)
+		return (b2lx(heightidx.blocks[0]), None)
 
 	def getconnectioncount(self, params):
 		return (len(self.peermgr.peers), None)
@@ -157,7 +155,7 @@ class RPCExec(object):
 	def getrawmempool(self, params):
 		l = []
 		for k in self.mempool.pool.iterkeys():
-			l.append("%064x" % (k,))
+			l.append(b2lx(k))
 		return (l, None)
 
 	def getrawtransaction(self, params):
@@ -195,7 +193,7 @@ class RPCExec(object):
 		res = {}
 
 		target = uint256_from_compact(block.nBits)
-		res['target'] = "%064x" % (target,)
+		res['target'] = b2lx(target)
 
 		data = block.serialize()
 		data = data[:80]
