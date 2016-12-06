@@ -598,11 +598,15 @@ class ChainDb(object):
 	def locate(self, locator):
 		for hash in locator.vHave:
 			ser_hash = b2lx(hash)
-			if ser_hash in self.blkmeta:
+			try:
 				blkmeta = BlkMeta()
 				blkmeta.deserialize(self.db.Get('blkmeta:'+ser_hash))
 				return blkmeta
-		return 0
+			except KeyError:
+				pass
+		blkmeta = BlkMeta()
+		blkmeta.height = 0
+		return blkmeta
 
 	def getheight(self):
 		return int(self.db.Get('misc:height'))
