@@ -322,7 +322,7 @@ class NodeConn(Greenlet):
 	def getblocks(self, message):
 		blkmeta = self.chaindb.locate(message.locator)
 		height = blkmeta.height
-		top_height = self.getheight()
+		top_height = self.chaindb.getheight()
 		end_height = height + 500
 		if end_height > top_height:
 			end_height = top_height
@@ -348,7 +348,7 @@ class NodeConn(Greenlet):
 	def getheaders(self, message):
 		blkmeta = self.chaindb.locate(message.locator)
 		height = blkmeta.height
-		top_height = self.getheight()
+		top_height = self.chaindb.getheight()
 		end_height = height + 2000
 		if end_height > top_height:
 			end_height = top_height
