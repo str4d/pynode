@@ -14,7 +14,7 @@ import ChainDb
 import cStringIO
 import struct
 
-from bitcoin.coredefs import NETWORKS
+import bitcoin
 from bitcoin.core import CBlock
 from bitcoin.scripteval import *
 
@@ -30,14 +30,13 @@ NET_SETTINGS = {
 }
 
 MY_NETWORK = 'mainnet'
+bitcoin.SelectParams(MY_NETWORK)
 
 SETTINGS = NET_SETTINGS[MY_NETWORK]
 
 log = Log.Log(SETTINGS['log'])
 mempool = MemPool.MemPool(log)
-netmagic = NETWORKS[MY_NETWORK]
-chaindb = ChainDb.ChainDb(SETTINGS, SETTINGS['db'], log, mempool, netmagic,
-			  True)
+chaindb = ChainDb.ChainDb(SETTINGS, SETTINGS['db'], log, mempool, True)
 
 scanned = 0
 failures = 0

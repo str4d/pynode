@@ -18,7 +18,7 @@ import bitcoin
 from bitcoin.core import *
 from bitcoin.core.scripteval import VerifySignature
 from bitcoin.core.serialize import *
-from bitcoin.messages import msg_block
+from bitcoin.messages import MsgSerializable, msg_block
 
 
 
@@ -80,13 +80,12 @@ class HeightIdx(object):
 
 
 class ChainDb(object):
-	def __init__(self, settings, datadir, log, mempool, netmagic,
+	def __init__(self, settings, datadir, log, mempool,
 		     readonly=False, fast_dbm=False):
 		self.settings = settings
 		self.log = log
 		self.mempool = mempool
 		self.readonly = readonly
-		self.netmagic = netmagic
 		self.fast_dbm = fast_dbm
 		self.blk_cache = Cache(500)
 		self.orphans = {}
@@ -108,14 +107,14 @@ class ChainDb(object):
 			self.log.write("INITIALIZING EMPTY BLOCKCHAIN DATABASE")
 			batch = leveldb.WriteBatch()
 			batch.Put('misc:height', str(-1))
-			batch.Put('misc:msg_start', self.netmagic.msg_start)
+			batch.Put('misc:msg_start', bitcoin.params.MESSAGE_START)
 			batch.Put('misc:tophash', ser_uint256(0L))
 			batch.Put('misc:total_work', hex(0L))
 			self.db.Write(batch)
 
 		try:
 			start = self.db.Get('misc:msg_start')
-			if start != self.netmagic.msg_start: raise KeyError
+			if start != bitcoin.params.MESSAGE_START: raise KeyError
 		except KeyError:
 			self.log.write("Database magic number mismatch. Data corruption or incorrect network?")
 			raise RuntimeError
@@ -178,7 +177,7 @@ class ChainDb(object):
 			return False
 
 	def have_prevblock(self, block):
-		if self.getheight() < 0 and block.sha256 == self.netmagic.block0:
+		if self.getheight() < 0 and block.sha256 == bitcoin.params.GENESIS_BLOCK.sha256:
 			return True
 		if self.haveblock(block.hashPrevBlock, False):
 			return True
@@ -196,7 +195,7 @@ class ChainDb(object):
 			self.blk_read.seek(fpos)
 
 			# read and decode "block" msg
-			msg = message_read(self.netmagic, self.blk_read)
+			msg = MsgSerializable.stream_deserialize(self.blk_read)
 			if msg is None:
 				return None
 			block = msg.block
@@ -334,7 +333,9 @@ class ChainDb(object):
 		return True
 
 	def tx_is_orphan(self, tx):
-		if not tx.is_valid():
+		try:
+			CheckTransaction(tx)
+		except CheckTransactionError:
 			return None
 
 		for txin in tx.vin:
@@ -352,16 +353,6 @@ class ChainDb(object):
 		return False
 
 	def connect_block(self, ser_hash, block, blkmeta):
-		# verify against checkpoint list
-		try:
-			chk_hash = self.netmagic.checkpoints[blkmeta.height]
-			if chk_hash != block.sha256:
-				self.log.write("Block %064x does not match checkpoint hash %064x, height %d" % (
-					block.sha256, chk_hash, blkmeta.height))
-				return False
-		except KeyError:
-			pass
-			
 		# check TX connectivity
 		outpts = self.spent_outpts(block)
 		if outpts is None:
@@ -369,9 +360,7 @@ class ChainDb(object):
 			return False
 
 		# verify script signatures
-		if ('nosig' not in self.settings and
-		    ('forcesig' in self.settings or
-		     blkmeta.height > self.netmagic.checkpoint_max)):
+		if ('nosig' not in self.settings):
 			for tx in block.vtx:
 				tx.calc_sha256()
 
@@ -555,7 +544,7 @@ class ChainDb(object):
 		# build network "block" msg, as canonical disk storage form
 		msg = msg_block()
 		msg.block = block
-		msg_data = message_to_str(self.netmagic, msg)
+		msg_data = msg.to_bytes()
 
 		# write "block" msg to storage
 		fpos = self.blk_write.tell()
@@ -651,7 +640,7 @@ class ChainDb(object):
 				wanted = 0
 
 			buflen = len(buf)
-			startpos = string.find(buf, self.netmagic.msg_start)
+			startpos = string.find(buf, bitcoin.params.MESSAGE_START)
 			if startpos < 0:
 				wanted = 8
 				continue

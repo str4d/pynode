@@ -15,7 +15,7 @@ import cStringIO
 import struct
 import argparse
 
-from bitcoin.coredefs import NETWORKS
+import bitcoin
 from bitcoin.core import CBlock
 from bitcoin.scripteval import *
 
@@ -31,6 +31,7 @@ NET_SETTINGS = {
 }
 
 MY_NETWORK = 'mainnet'
+bitcoin.SelectParams(MY_NETWORK)
 
 SETTINGS = NET_SETTINGS[MY_NETWORK]
 
@@ -46,9 +47,7 @@ args = opts.parse_args()
 log = Log.Log()
 
 mempool = MemPool.MemPool(log)
-netmagic = NETWORKS[MY_NETWORK]
-chaindb = ChainDb.ChainDb(SETTINGS, SETTINGS['db'], log, mempool, netmagic,
-			  True)
+chaindb = ChainDb.ChainDb(SETTINGS, SETTINGS['db'], log, mempool, True)
 
 if args.latest:
 	scan_height = chaindb.getheight()
@@ -78,7 +77,7 @@ for height in xrange(scan_height+1):
 
 	ser_block = block.serialize()
 
-	outhdr = netmagic.msg_start
+	outhdr = bitcoin.params.MESSAGE_START
 	outhdr += struct.pack("<i", len(ser_block))
 
 	outf.write(outhdr)

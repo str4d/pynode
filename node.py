@@ -63,19 +63,18 @@ def verbose_recvmsg(message):
 
 class NodeConn(Greenlet):
 	def __init__(self, dstaddr, dstport, log, peermgr,
-			 mempool, chaindb, netmagic):
+			 mempool, chaindb):
 		Greenlet.__init__(self)
 		self.log = log
 		self.peermgr = peermgr
 		self.mempool = mempool
 		self.chaindb = chaindb
-		self.netmagic = netmagic
 		self.dstaddr = dstaddr
 		self.dstport = dstport
 		self.sock = gevent.socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		self.recvbuf = ""
-		self.ver_send = MIN_PROTO_VERSION
-		self.ver_recv = MIN_PROTO_VERSION
+		self.ver_send = PROTO_VERSION
+		self.ver_recv = PROTO_VERSION
 		self.last_sent = 0
 		self.getblocks_ok = True
 		self.last_block_rx = time.time()
@@ -125,27 +124,20 @@ class NodeConn(Greenlet):
 		while True:
 			if len(self.recvbuf) < 4:
 				return
-			if self.recvbuf[:4] != self.netmagic.msg_start:
+			if self.recvbuf[:4] != bitcoin.params.MESSAGE_START:
 				raise ValueError("got garbage %s" % repr(self.recvbuf))
 			# check checksum
 			if len(self.recvbuf) < 4 + 12 + 4 + 4:
 				return
 			command = self.recvbuf[4:4+12].split("\x00", 1)[0]
 			msglen = struct.unpack("<i", self.recvbuf[4+12:4+12+4])[0]
-			checksum = self.recvbuf[4+12+4:4+12+4+4]
 			if len(self.recvbuf) < 4 + 12 + 4 + 4 + msglen:
 				return
-			msg = self.recvbuf[4+12+4+4:4+12+4+4+msglen]
-			th = hashlib.sha256(msg).digest()
-			h = hashlib.sha256(th).digest()
-			if checksum != h[:4]:
-				raise ValueError("got bad checksum %s" % repr(self.recvbuf))
+			msg = self.recvbuf[:4+12+4+4+msglen]
 			self.recvbuf = self.recvbuf[4+12+4+4+msglen:]
 
 			if command in messagemap:
-				f = cStringIO.StringIO(msg)
-				t = messagemap[command](self.ver_recv)
-				t.deserialize(f)
+				t = MsgSerializable.from_bytes(msg)
 				self.got_message(t)
 			else:
 				self.log.write("UNKNOWN COMMAND %s %s" % (command, repr(msg)))
@@ -154,7 +146,7 @@ class NodeConn(Greenlet):
 		if verbose_sendmsg(message):
 			self.log.write("send %s" % repr(message))
 
-		tmsg = message_to_str(self.netmagic, message)
+		tmsg = message.to_bytes()
 
 		try:
 			self.sock.sendall(tmsg)
@@ -175,7 +167,7 @@ class NodeConn(Greenlet):
 			gd = msg_getdata(self.ver_send)
 			inv = CInv()
 			inv.type = 2
-			inv.hash = self.netmagic.block0
+			inv.hash = bitcoin.params.GENESIS_BLOCK.sha256
 			gd.inv.append(inv)
 			self.send_message(gd)
 		elif our_height < self.remote_height:
@@ -195,14 +187,10 @@ class NodeConn(Greenlet):
 
 		if message.command == "version":
 			self.ver_send = min(PROTO_VERSION, message.nVersion)
-			if self.ver_send < MIN_PROTO_VERSION:
+			if self.ver_send < PROTO_VERSION:
 				self.log.write("Obsolete version %d, closing" % (self.ver_send,))
 				self.handle_close()
 				return
-
-			if (self.ver_send >= NOBLKS_VERSION_START and
-			    self.ver_send <= NOBLKS_VERSION_END):
-				self.getblocks_ok = False
 
 			self.remote_height = message.nStartingHeight
 			self.send_message(msg_verack(self.ver_send))
@@ -217,8 +205,7 @@ class NodeConn(Greenlet):
 #				self.send_message(msg_mempool())
 
 		elif message.command == "ping":
-			if self.ver_send > BIP0031_VERSION:
-				self.send_message(msg_pong(self.ver_send))
+			self.send_message(msg_pong(self.ver_send))
 
 		elif message.command == "addr":
 			peermgr.new_addrs(message.addrs)
@@ -384,11 +371,10 @@ class NodeConn(Greenlet):
 
 
 class PeerManager(object):
-	def __init__(self, log, mempool, chaindb, netmagic):
+	def __init__(self, log, mempool, chaindb):
 		self.log = log
 		self.mempool = mempool
 		self.chaindb = chaindb
-		self.netmagic = netmagic
 		self.peers = []
 		self.addrs = {}
 		self.tried = {}
@@ -398,7 +384,7 @@ class PeerManager(object):
 			       (host, port))
 		self.tried[host] = True
 		c = NodeConn(host, port, self.log, self, self.mempool,
-			     self.chaindb, self.netmagic)
+			     self.chaindb)
 		self.peers.append(c)
 		return c
 
@@ -469,16 +455,12 @@ if __name__ == '__main__':
 
 	log.write("\n\n\n\n")
 
-	if chain not in NETWORKS:
-		log.write("invalid network")
-		sys.exit(1)
-
-	netmagic = NETWORKS[chain]
+	bitcoin.SelectParams(chain)
 
 	mempool = MemPool.MemPool(log)
 	chaindb = ChainDb.ChainDb(settings, settings['db'], log, mempool,
-				  netmagic, False, False)
-	peermgr = PeerManager(log, mempool, chaindb, netmagic)
+				  False, False)
+	peermgr = PeerManager(log, mempool, chaindb)
 
 	if 'loadblock' in settings:
 		chaindb.loadfile(settings['loadblock'])
