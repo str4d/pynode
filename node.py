@@ -329,7 +329,7 @@ class NodeConn(Greenlet):
 
 		msg = msg_inv()
 		while height <= end_height:
-			hash = long(self.chaindb.height[str(height)])
+			hash = self.chaindb.getblockhash(height)
 			if hash == message.hashstop:
 				break
 
@@ -355,7 +355,7 @@ class NodeConn(Greenlet):
 
 		msg = msg_headers()
 		while height <= end_height:
-			blkhash = long(self.chaindb.height[str(height)])
+			blkhash = self.chaindb.getblockhash(height)
 			if blkhash == message.hashstop:
 				break
 

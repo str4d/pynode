@@ -431,6 +431,15 @@ class ChainDb(object):
 
 		return True
 
+	def getblockhash(self, height):
+		heightidx = HeightIdx()
+		heightstr = str(height)
+		try:
+			heightidx.deserialize(self.db.Get('height:'+heightstr))
+		except KeyError:
+			pass
+		return heightidx.blocks[0]
+
 	def getblockmeta(self, blkhash):
 		ser_hash = b2lx(blkhash)
 		try:
