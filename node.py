@@ -462,9 +462,12 @@ if __name__ == '__main__':
 	chaindbs = {}
 
 	for name, (host, port) in peers.items():
+		datadir = os.path.join(settings['db'], name)
+		if not os.path.exists(datadir):
+			os.makedirs(datadir)
 		nlog = Log.NamedLog(log, name)
 		mempool = MemPool.MemPool(nlog)
-		chaindb = ChainDb.ChainDb(settings, os.path.join(settings['db'], name),
+		chaindb = ChainDb.ChainDb(settings, datadir,
 					  nlog, mempool, False, False)
 		peermgr = PeerManager(nlog, mempool, chaindb)
 
