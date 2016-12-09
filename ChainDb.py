@@ -14,6 +14,7 @@ import os
 import time
 from decimal import Decimal
 from Cache import Cache
+from gevent.coros import BoundedSemaphore
 import bitcoin
 from bitcoin.core import *
 from bitcoin.core.scripteval import VerifySignature
@@ -78,6 +79,33 @@ class HeightIdx(object):
 		return "HeightIdx(blocks=%s)" % (self.serialize(),)
 
 
+class DbLock(object):
+	def __init__(self, db):
+		self.db = db
+		self.lock = BoundedSemaphore(1)
+
+	def Get(self, key):
+		try:
+			self.lock.acquire()
+			return self.db.Get(key)
+		finally:
+			self.lock.release()
+
+	def Put(self, key, value):
+		try:
+			self.lock.acquire()
+			self.db.Put(key, value)
+		finally:
+			self.lock.release()
+
+	def Write(self, batch):
+		try:
+			self.lock.acquire()
+			self.db.Write(batch)
+		finally:
+			self.lock.release()
+
+
 class ChainDb(object):
 	def __init__(self, settings, datadir, log, mempool,
 		     readonly=False, fast_dbm=False):
@@ -98,7 +126,7 @@ class ChainDb(object):
 		#    blocks:*  block seek point in stream
 		self.blk_write = io.BufferedWriter(io.FileIO(datadir + '/blocks.dat','ab'))
 		self.blk_read = io.BufferedReader(io.FileIO(datadir + '/blocks.dat','rb'))
-		self.db = leveldb.LevelDB(datadir + '/leveldb')
+		self.db = DbLock(leveldb.LevelDB(datadir + '/leveldb'))
 
 		try:
 			self.db.Get('misc:height')
