@@ -20,3 +20,12 @@ class Log(object):
 		line = "%s\n" % msg
 		self.fh.write(line)
 
+
+class NamedLog(object):
+	def __init__(self, log, name):
+		self.log = log
+		self.name = name
+
+	def write(self, msg):
+		self.log.write('[%s] %s' % (self.name, msg))
+

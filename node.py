@@ -15,6 +15,7 @@ import struct
 import socket
 import binascii
 import time
+import os
 import sys
 import re
 import random
@@ -27,6 +28,8 @@ import rpc
 import ChainDb
 import MemPool
 import Log
+import Monitor
+
 import bitcoin
 from bitcoin.core import *
 from bitcoin.core.serialize import *
@@ -35,6 +38,7 @@ from bitcoin.net import *
 
 MY_SUBVERSION = "/pynode:0.0.1/"
 
+peers = {}
 settings = {}
 debugnet = False
 
@@ -424,13 +428,13 @@ if __name__ == '__main__':
 		m = re.search('^(\w+)\s*=\s*(\S.*)$', line)
 		if m is None:
 			continue
-		settings[m.group(1)] = m.group(2)
+		if m.group(1) == 'peer':
+			name, host, port = m.group(2).split(':')
+			peers[name] = (host, int(port))
+		else:
+			settings[m.group(1)] = m.group(2)
 	f.close()
 
-	if 'host' not in settings:
-		settings['host'] = '127.0.0.1'
-	if 'port' not in settings:
-		settings['port'] = 8333
 	if 'rpcport' not in settings:
 		settings['rpcport'] = 9332
 	if 'db' not in settings:
@@ -441,12 +445,11 @@ if __name__ == '__main__':
 	if 'log' not in settings or (settings['log'] == '-'):
 		settings['log'] = None
 
-	if ('rpcuser' not in settings or
-	    'rpcpass' not in settings):
-		print("You must set the following in config: rpcuser, rpcpass")
-		sys.exit(1)
+	#if ('rpcuser' not in settings or
+	#    'rpcpass' not in settings):
+	#	print("You must set the following in config: rpcuser, rpcpass")
+	#	sys.exit(1)
 
-	settings['port'] = int(settings['port'])
 	settings['rpcport'] = int(settings['rpcport'])
 
 	log = Log.Log(settings['log'])
@@ -455,32 +458,34 @@ if __name__ == '__main__':
 
 	bitcoin.SelectParams(chain)
 
-	mempool = MemPool.MemPool(log)
-	chaindb = ChainDb.ChainDb(settings, settings['db'], log, mempool,
-				  False, False)
-	peermgr = PeerManager(log, mempool, chaindb)
-
-	if 'loadblock' in settings:
-		chaindb.loadfile(settings['loadblock'])
-
 	threads = []
+	chaindbs = {}
+
+	for name, (host, port) in peers.items():
+		nlog = Log.NamedLog(log, name)
+		mempool = MemPool.MemPool(nlog)
+		chaindb = ChainDb.ChainDb(settings, os.path.join(settings['db'], name),
+					  nlog, mempool, False, False)
+		peermgr = PeerManager(nlog, mempool, chaindb)
+
+		if 'loadblock' in settings:
+			chaindb.loadfile(settings['loadblock'])
+
+		# connect to specified remote node
+		c = peermgr.add(host, port)
+		threads.append(c)
+		chaindbs[name] = chaindb
 
 	# start HTTP server for JSON-RPC
-	rpcexec = rpc.RPCExec(peermgr, mempool, chaindb, log,
-				  settings['rpcuser'], settings['rpcpass'])
-	rpcserver = gevent.pywsgi.WSGIServer(('', settings['rpcport']), rpcexec.handle_request)
-	t = gevent.Greenlet(rpcserver.serve_forever)
-	threads.append(t)
+	#rpcexec = rpc.RPCExec(peermgr, mempool, chaindb, log,
+	#			  settings['rpcuser'], settings['rpcpass'])
+	#rpcserver = gevent.pywsgi.WSGIServer(('', settings['rpcport']), rpcexec.handle_request)
+	#t = gevent.Greenlet(rpcserver.serve_forever)
+	#threads.append(t)
 
-	# connect to specified remote node
-	c = peermgr.add(settings['host'], settings['port'])
-	threads.append(c)
-	
-	if 'addnodes' in settings and settings['addnodes']:
-                for node in settings['addnodes'].split():
-                        c = peermgr.add(node, settings['port'])
-                        threads.append(c)
-                        time.sleep(2)
+	# start fork detector
+	t = Monitor.ForkDetector(settings, log, chaindbs)
+	threads.append(t)
 
 	# program main loop
 	def start(timeout=None):
@@ -492,8 +497,9 @@ if __name__ == '__main__':
 			for t in threads: t.kill()
 			gevent.joinall(threads)
 			log.write('Flushing database...')
-			del chaindb.db
-			chaindb.blk_write.close()
+			for chaindb in chaindbs.values():
+				del chaindb.db
+				chaindb.blk_write.close()
 			log.write('OK')
 
 	start()
