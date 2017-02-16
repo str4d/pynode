@@ -105,6 +105,25 @@ class DbLock(object):
 		finally:
 			self.lock.release()
 
+class ChainDbLock(object):
+	def __init__(self, chaindb):
+		self._chaindb = chaindb
+		self.lock = BoundedSemaphore(1)
+
+	def acquire(self):
+		self.lock.acquire()
+		return self._chaindb
+
+	def release(self):
+		self.lock.release()
+
+	def __getattr__(self, attr):
+		try:
+			self.lock.acquire()
+			return getattr(self._chaindb, attr)
+		finally:
+			self.lock.release()
+
 
 class ChainDb(object):
 	def __init__(self, settings, datadir, log, mempool,

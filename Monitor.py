@@ -23,11 +23,13 @@ class ForkDetector(Greenlet):
 		self.log.write('ForkDetector: Watching %d peers' % len(self.chaindbs))
 		while True:
 			gevent.sleep(self.refresh)
-			self.check_chains()
+			locked = {name: cdb.acquire() for name, cdb in self.chaindbs.items()}
+			self.check_chains(locked)
+			[cdb.release() for name, cdb in self.chaindbs.items()]
 
-	def check_chains(self):
+	def check_chains(self, chaindbs):
 		self.log.write('ForkDetector: Checking chains')
-		tips = [((cdb.getheight(), cdb.gettophash()), name) for name, cdb in self.chaindbs.items()]
+		tips = [((cdb.getheight(), cdb.gettophash()), name) for name, cdb in chaindbs.items()]
 		tips.sort()
 
 		# Level 1: Group common tips
@@ -55,7 +57,7 @@ class ForkDetector(Greenlet):
 					cpt = parent[cpt]
 				height = cpt[0]
 				cur = cpt[1]
-				cdb = self.chaindbs[l1[cpt][0]]
+				cdb = chaindbs[l1[cpt][0]]
 				while height > pt[0]:
 					cur = cdb.getblock(cur).hashPrevBlock
 					height -= 1

@@ -467,8 +467,9 @@ if __name__ == '__main__':
 			os.makedirs(datadir)
 		nlog = Log.NamedLog(log, name)
 		mempool = MemPool.MemPool(nlog)
-		chaindb = ChainDb.ChainDb(settings, datadir,
-					  nlog, mempool, False, False)
+		chaindb = ChainDb.ChainDbLock(
+				ChainDb.ChainDb(settings, datadir,
+						nlog, mempool, False, False))
 		peermgr = PeerManager(nlog, mempool, chaindb)
 
 		if 'loadblock' in settings:
@@ -501,8 +502,10 @@ if __name__ == '__main__':
 			gevent.joinall(threads)
 			log.write('Flushing database...')
 			for chaindb in chaindbs.values():
-				del chaindb.db
-				chaindb.blk_write.close()
+				cdb = chaindb.acquire()
+				del cdb.db
+				cdb.blk_write.close()
+				chaindb.release()
 			log.write('OK')
 
 	start()
