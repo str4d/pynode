@@ -15,7 +15,7 @@ from bitcoin.core import b2lx
 class ForkDetector(Greenlet):
 	def __init__(self, settings, log, chaindbs):
 		Greenlet.__init__(self)
-		self.refresh = settings['checkinterval'] if 'checkinterval' in settings else 60
+		self.refresh = int(settings['checkinterval']) if 'checkinterval' in settings else 60
 		self.log = log
 		self.chaindbs = chaindbs
 
